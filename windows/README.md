@@ -5,7 +5,7 @@ The Windows version of Squish, built with WPF on .NET 10. It has the same design
 ## Requirements
 
 - Windows 10 (version 1809) or Windows 11, on x64 or Arm64.
-- The [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) for the small (about 2 MB) build. The standalone build includes the runtime and needs nothing else.
+- The [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) for the regular build, a 7 MB download. Most of that is Microsoft's WinRT bridge to the Windows imaging, PDF and media APIs. The standalone build includes the runtime and needs nothing else.
 - Optional free or low-cost codec extensions from the Microsoft Store add more formats:
 
 | Extension | Adds |
