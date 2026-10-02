@@ -1,0 +1,75 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+    paths: ["windows/**", ".github/workflows/windows.yml"]
+  pull_request:
+    paths: ["windows/**", ".github/workflows/windows.yml"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: pwsh
+    working-directory: windows
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Publish
+        run: |
+          foreach ($rid in "win-x64", "win-arm64") {
+            dotnet publish Squish/Squish.csproj -c Release -r $rid --self-contained false -p:PublishSingleFile=true -o "publish/$rid"
+            if ($LASTEXITCODE) { exit 1 }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Squish-windows-x64
+          path: windows/publish/win-x64/Squish.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Squish-windows-arm64
+          path: windows/publish/win-arm64/Squish.exe
+
+  # Runs the real app through its states on generated files, saving
+  # screenshots, logs and the converted files for review.
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Install ffmpeg (for test files and checks)
+        run: choco install ffmpeg -y --no-progress
+      - name: Build (Debug)
+        run: dotnet build Squish/Squish.csproj -c Debug
+      - name: Make test files
+        run: ./scripts/make-fixtures.ps1 -Out fixtures
+      - name: Images → one PDF
+        run: |
+          ./scripts/run-snapshots.ps1 -Name convert-pdf -Files fixtures/Photo.jpg, fixtures/Graphic.png, fixtures/Transparent.png `
+            -Settings '{"Mode":"Convert","Convert":{"Image":"Pdf","CombineImages":true}}'
+          Copy-Item results/convert-pdf/output/Photo-combined.pdf fixtures/Report.pdf
+      - name: Compress (Balanced)
+        run: ./scripts/run-snapshots.ps1 -Name compress -Preset Balanced -Files (Get-ChildItem fixtures).FullName
+      - name: Convert (JPEG, JPEG pages, MP4 H.264, MP3)
+        run: |
+          ./scripts/run-snapshots.ps1 -Name convert -Files (Get-ChildItem fixtures).FullName `
+            -Settings '{"Mode":"Convert","Convert":{"Image":"Jpeg","Pages":"Jpeg","PageDpi":150,"Audio":"Mp3"}}'
+      - name: Inspect media outputs
+        run: |
+          Get-ChildItem -Recurse results -Include *.mp4, *.m4a, *.mp3, *.wav | ForEach-Object {
+            Write-Host "== $($_.FullName)"
+            ffprobe -v error -show_entries "stream=codec_name,width,height,bit_rate,sample_rate,channels:stream_side_data=rotation:format=duration" -of compact $_.FullName
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-test-results
+          path: windows/results

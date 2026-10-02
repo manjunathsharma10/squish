@@ -1,0 +1,491 @@
+<Window x:Class="Squish.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Squish"
+        Title="Squish" Width="660" Height="800" MinWidth="600" MinHeight="660"
+        WindowStartupLocation="CenterScreen" AllowDrop="True"
+        Background="{DynamicResource Background}" FontFamily="{StaticResource Ui}"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
+        Icon="pack://application:,,,/Assets/Squish.ico">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="32" ResizeBorderThickness="6" GlassFrameThickness="0"
+                      CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <Style x:Key="RowLabel" TargetType="local:Caps">
+            <Setter Property="Width" Value="92" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Muted}" />
+        </Style>
+
+        <Style x:Key="Row" TargetType="DockPanel">
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="LastChildFill" Value="True" />
+        </Style>
+
+        <Style x:Key="Divider" TargetType="Border">
+            <Setter Property="Width" Value="1" />
+            <Setter Property="Height" Value="12" />
+            <Setter Property="Margin" Value="0,0,16,0" />
+            <Setter Property="Background" Value="{DynamicResource Line}" />
+        </Style>
+
+        <!-- An icon that follows its button's (hover-aware) text colour. -->
+        <Style x:Key="Glyph" TargetType="Path">
+            <Setter Property="Stroke" Value="{Binding (TextElement.Foreground), RelativeSource={RelativeSource Self}}" />
+            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="Stretch" Value="None" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+        </Style>
+
+        <!-- "Next to original" / folder choice, styled like the option rows. -->
+        <Style x:Key="SaveChoice" TargetType="TextBlock" BasedOn="{StaticResource Body}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="0,4" />
+            <Setter Property="Foreground" Value="{DynamicResource Muted}" />
+        </Style>
+
+        <DataTemplate x:Key="SaveTo">
+            <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource Bare}" Margin="0,0,16,0" Click="SaveNextToOriginal">
+                    <Grid>
+                        <TextBlock x:Name="Next" Text="Next to original" Style="{StaticResource SaveChoice}" />
+                        <Rectangle x:Name="NextMark" Height="1.5" VerticalAlignment="Bottom" Fill="{DynamicResource Accent}" Visibility="Hidden" />
+                    </Grid>
+                </Button>
+                <Button Style="{StaticResource Bare}" Click="ChooseFolder" ToolTip="{Binding Settings.Destination, TargetNullValue='Save to a folder of your choice'}">
+                    <Grid>
+                        <TextBlock x:Name="Folder" Text="{Binding DestinationLabel, TargetNullValue='Choose folder…'}" Style="{StaticResource SaveChoice}" />
+                        <Rectangle x:Name="FolderMark" Height="1.5" VerticalAlignment="Bottom" Fill="{DynamicResource Accent}" Visibility="Hidden" />
+                    </Grid>
+                </Button>
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding HasDestination}" Value="False">
+                    <Setter TargetName="Next" Property="Foreground" Value="{DynamicResource Ink}" />
+                    <Setter TargetName="Next" Property="FontWeight" Value="Medium" />
+                    <Setter TargetName="NextMark" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HasDestination}" Value="True">
+                    <Setter TargetName="Folder" Property="Foreground" Value="{DynamicResource Ink}" />
+                    <Setter TargetName="Folder" Property="FontWeight" Value="Medium" />
+                    <Setter TargetName="FolderMark" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <DataTemplate x:Key="FileRow" DataType="{x:Type local:FileItem}">
+            <Border x:Name="Row" Background="Transparent" MouseLeftButtonDown="RowMouseDown">
+                <Border.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Show in File Explorer" Click="RevealItem" />
+                        <MenuItem Header="Open" Click="OpenItem" />
+                        <Separator />
+                        <MenuItem Header="Remove" Click="RemoveItem" IsEnabled="{Binding CanRemove}" />
+                    </ContextMenu>
+                </Border.ContextMenu>
+                <Grid>
+                    <Grid Height="58" Margin="28,0,20,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="36" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="44" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Greyscale until hovered or finished, like the macOS app. -->
+                        <Grid Width="36" Height="36" ClipToBounds="True">
+                            <Border Background="{DynamicResource Wash}" />
+                            <Image Source="{Binding ThumbnailMono}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                            <Image x:Name="Vivid" Source="{Binding Thumbnail}" Stretch="UniformToFill" Opacity="0"
+                                   RenderOptions.BitmapScalingMode="HighQuality" />
+                            <Border BorderBrush="{DynamicResource Line}" BorderThickness="1" />
+                        </Grid>
+
+                        <StackPanel Grid.Column="1" Margin="14,0,12,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Name}" Style="{StaticResource Body}" FontSize="13" FontWeight="Medium"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="Detail" Text="{Binding Detail}" Style="{StaticResource Body}" FontSize="11.5"
+                                       Foreground="{DynamicResource Muted}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding Detail}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="Trailing" Text="{Binding Trailing}" Style="{StaticResource Figures}"
+                                       Foreground="{DynamicResource Muted}" />
+                            <TextBlock x:Name="Saving" Text="{Binding SavingText}" Style="{StaticResource Figures}" FontWeight="SemiBold"
+                                       MinWidth="40" TextAlignment="Right" Margin="12,0,0,0" Foreground="{DynamicResource Muted}"
+                                       Visibility="{Binding SavingText, Converter={StaticResource VisibleWhen}}" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="Actions" Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" Opacity="0">
+                            <Button Style="{StaticResource Quiet}" Width="20" Height="20" Click="RevealItem" ToolTip="Show in File Explorer"
+                                    Visibility="{Binding IsDone, Converter={StaticResource VisibleWhen}}">
+                                <Path Style="{StaticResource Glyph}" Data="{StaticResource IconReveal}" HorizontalAlignment="Center" />
+                            </Button>
+                            <Button Style="{StaticResource Quiet}" Width="20" Height="20" Click="RemoveItem" ToolTip="Remove"
+                                    Visibility="{Binding CanRemove, Converter={StaticResource VisibleWhen}}">
+                                <Path Style="{StaticResource Glyph}" Data="{StaticResource IconCross}" HorizontalAlignment="Center" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                    <Border Height="1" VerticalAlignment="Bottom" Margin="78,0,0,0" Background="{DynamicResource Line}" />
+                    <ProgressBar Style="{StaticResource Hairline}" VerticalAlignment="Bottom"
+                                 Value="{Binding ProgressValue, Mode=OneWay}" IsIndeterminate="{Binding IsIndeterminate, Mode=OneWay}"
+                                 Visibility="{Binding IsWorking, Converter={StaticResource VisibleWhen}}" />
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsVivid}" Value="True">
+                    <Setter TargetName="Vivid" Property="Opacity" Value="1" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsFailed}" Value="True">
+                    <Setter TargetName="Detail" Property="Foreground" Value="{DynamicResource Accent}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsWorking}" Value="True">
+                    <Setter TargetName="Trailing" Property="Foreground" Value="{DynamicResource Ink}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding TrailingIsQuiet}" Value="True">
+                    <Setter TargetName="Trailing" Property="Foreground" Value="{DynamicResource Faint}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding SavingIsGood}" Value="True">
+                    <Setter TargetName="Saving" Property="Foreground" Value="{DynamicResource Accent}" />
+                </DataTrigger>
+                <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Row" Property="Background" Value="{DynamicResource Wash}" />
+                    <Setter TargetName="Actions" Property="Opacity" Value="1" />
+                    <Setter TargetName="Vivid" Property="Opacity" Value="1" />
+                </Trigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid x:Name="Root" Background="{DynamicResource Background}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- MARK: Header -->
+        <Grid Grid.Row="0" Margin="28,34,28,22">
+            <StackPanel>
+                <TextBlock FontFamily="{StaticResource Display}" FontSize="30" FontWeight="SemiBold" Foreground="{DynamicResource Ink}">
+                    <Run Text="Squish" /><Run Text="." Foreground="{DynamicResource Accent}" />
+                </TextBlock>
+                <TextBlock Style="{StaticResource Body}" Foreground="{DynamicResource Muted}" Margin="0,4,0,0"
+                           Text="Make files lighter. Everything stays on this PC." />
+            </StackPanel>
+            <Button Style="{StaticResource Quiet}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,0,0"
+                    WindowChrome.IsHitTestVisibleInChrome="True" Click="CycleAppearance" ToolTip="Appearance">
+                <StackPanel Orientation="Horizontal">
+                    <local:Caps Text="{Binding AppearanceLabel}" Foreground="{DynamicResource Faint}" VerticalAlignment="Center" />
+                    <Grid Width="13" Height="13" Margin="7,0,0,0">
+                        <Ellipse Stroke="{Binding (TextElement.Foreground), RelativeSource={RelativeSource Self}}" StrokeThickness="1" />
+                        <Path Fill="{Binding (TextElement.Foreground), RelativeSource={RelativeSource Self}}" Data="M 6.5,0.5 A 6,6 0 0 0 6.5,12.5 Z" />
+                    </Grid>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    WindowChrome.IsHitTestVisibleInChrome="True">
+            <Button Style="{StaticResource Caption}" Content="{StaticResource IconMinimize}" Click="MinimizeWindow" ToolTip="Minimise" />
+            <Button Style="{StaticResource Caption}" Content="{StaticResource IconMaximize}" Click="MaximizeWindow" ToolTip="Maximise" />
+            <Button Style="{StaticResource Caption}" Content="{StaticResource IconClose}" Tag="close" Click="CloseWindow" ToolTip="Close" />
+        </StackPanel>
+
+        <Border Grid.Row="1" Height="1" Background="{DynamicResource Line}" />
+
+        <!-- MARK: Mode, presets, conversion targets. Locked mid-batch. -->
+        <StackPanel Grid.Row="2" IsEnabled="{Binding IsIdle}">
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
+
+            <StackPanel Margin="28,18">
+                <Grid>
+                    <Border BorderBrush="{DynamicResource Line}" BorderThickness="1" Padding="2" HorizontalAlignment="Left">
+                        <local:OptionRow Segmented="True" Options="{x:Static local:AppModel.ModeChoices}" Selected="{Binding Mode}" />
+                    </Border>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <local:Caps Text="{Binding CustomSummary}" Foreground="{DynamicResource Muted}" Margin="0,0,14,0"
+                                    VerticalAlignment="Center" Visibility="{Binding IsCustom, Converter={StaticResource VisibleWhen}}" />
+                        <Button Style="{StaticResource Quiet}" Click="ToggleFineTune"
+                                Visibility="{Binding IsCompress, Converter={StaticResource VisibleWhen}}">
+                            <StackPanel Orientation="Horizontal">
+                                <local:Caps Text="Fine-tune" VerticalAlignment="Center" />
+                                <Path Style="{StaticResource Glyph}" Data="{StaticResource IconPlus}" Margin="7,0,0,0"
+                                      RenderTransformOrigin="0.5,0.5" Width="10" Height="10">
+                                    <Path.RenderTransform>
+                                        <RotateTransform x:Name="FineTuneIcon" Angle="0" />
+                                    </Path.RenderTransform>
+                                </Path>
+                            </StackPanel>
+                        </Button>
+                        <StackPanel Orientation="Horizontal" Opacity="{Binding ConvertOpacity}" ToolTip="Predicted total after converting"
+                                    Visibility="{Binding ShowConvertSummary, Converter={StaticResource VisibleWhen}}">
+                            <TextBlock Style="{StaticResource Figures}" FontSize="13" FontWeight="Medium" Text="{Binding ConvertPredicted}" />
+                            <TextBlock Text="{Binding ConvertPercent}" Margin="8,0,0,0" VerticalAlignment="Bottom">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Figures}">
+                                        <Setter Property="FontSize" Value="11.5" />
+                                        <Setter Property="Foreground" Value="{DynamicResource Faint}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ConvertSaves}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Presets, each with its predicted total. -->
+                <ItemsControl ItemsSource="{Binding Presets}" Margin="0,18,-18,0" Focusable="False"
+                              Visibility="{Binding IsCompress, Converter={StaticResource VisibleWhen}}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Rows="1" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type local:PresetCell}">
+                            <Button Style="{StaticResource Bare}" Margin="0,0,18,0" Click="PickPreset" ToolTip="{Binding Help}">
+                                <StackPanel>
+                                    <Grid Height="2" Margin="0,0,0,10">
+                                        <Border Height="1" VerticalAlignment="Bottom" Background="{DynamicResource Line}" />
+                                        <Border x:Name="Marker" Background="{DynamicResource Accent}" Visibility="Hidden" />
+                                    </Grid>
+                                    <DockPanel>
+                                        <TextBlock x:Name="Predicted" DockPanel.Dock="Right" Text="{Binding Predicted}" Style="{StaticResource Figures}"
+                                                   FontSize="13" FontWeight="Medium" Foreground="{DynamicResource Muted}" VerticalAlignment="Bottom"
+                                                   Visibility="{Binding ShowPrediction, Converter={StaticResource VisibleWhen}}" />
+                                        <TextBlock x:Name="Title" Text="{Binding Title}" FontFamily="{StaticResource Display}" FontSize="15"
+                                                   FontWeight="Medium" Foreground="{DynamicResource Muted}" />
+                                    </DockPanel>
+                                    <DockPanel Margin="0,3,0,0">
+                                        <TextBlock x:Name="Percent" DockPanel.Dock="Right" Text="{Binding Percent}" Style="{StaticResource Figures}"
+                                                   FontSize="11.5" Foreground="{DynamicResource Faint}" />
+                                        <TextBlock Text="{Binding Caption}" Style="{StaticResource Body}" FontSize="11.5" Foreground="{DynamicResource Faint}" />
+                                    </DockPanel>
+                                </StackPanel>
+                            </Button>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter TargetName="Marker" Property="Visibility" Value="Visible" />
+                                    <Setter TargetName="Title" Property="Foreground" Value="{DynamicResource Ink}" />
+                                    <Setter TargetName="Predicted" Property="Foreground" Value="{DynamicResource Ink}" />
+                                    <Setter TargetName="Percent" Property="Foreground" Value="{DynamicResource Accent}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsComplete}" Value="False">
+                                    <Setter TargetName="Predicted" Property="Opacity" Value="0.55" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Convert: one row per kind; kinds not in the queue are dimmed. -->
+                <StackPanel Margin="0,20,0,-12" Visibility="{Binding IsConvert, Converter={StaticResource VisibleWhen}}">
+                    <DockPanel Style="{StaticResource Row}" Opacity="{Binding ImagesOpacity}">
+                        <local:Caps Text="Images" Style="{StaticResource RowLabel}" />
+                        <StackPanel Orientation="Horizontal">
+                            <local:OptionRow Options="{x:Static local:AppModel.ImageTargetChoices}" Selected="{Binding ConvertImage}" />
+                            <StackPanel Orientation="Horizontal" Visibility="{Binding ShowCombine, Converter={StaticResource VisibleWhen}}">
+                                <Border Style="{StaticResource Divider}" />
+                                <local:OptionRow Options="{x:Static local:AppModel.CombineChoices}" Selected="{Binding CombineImages}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </DockPanel>
+                    <DockPanel Style="{StaticResource Row}" Opacity="{Binding PdfOpacity}">
+                        <local:Caps Text="PDF" Style="{StaticResource RowLabel}" />
+                        <StackPanel Orientation="Horizontal">
+                            <local:OptionRow Options="{x:Static local:AppModel.PageChoices}" Selected="{Binding Pages}" />
+                            <Border Style="{StaticResource Divider}" />
+                            <local:OptionRow Options="{x:Static local:AppModel.DpiChoices}" Selected="{Binding PageDpi}" />
+                        </StackPanel>
+                    </DockPanel>
+                    <DockPanel Style="{StaticResource Row}" Opacity="{Binding VideoOpacity}">
+                        <local:Caps Text="Video" Style="{StaticResource RowLabel}" />
+                        <StackPanel Orientation="Horizontal">
+                            <Grid Margin="0,0,16,0">
+                                <TextBlock Text="MP4" Style="{StaticResource Body}" FontSize="12" FontWeight="Medium" Padding="0,4" />
+                                <Rectangle Height="1.5" VerticalAlignment="Bottom" Fill="{DynamicResource Accent}" />
+                            </Grid>
+                            <Border Style="{StaticResource Divider}" />
+                            <local:OptionRow Options="{Binding CodecChoices}" Selected="{Binding ConvertCodec}" />
+                        </StackPanel>
+                    </DockPanel>
+                    <DockPanel Style="{StaticResource Row}" Opacity="{Binding AudioOpacity}">
+                        <local:Caps Text="Audio" Style="{StaticResource RowLabel}" />
+                        <local:OptionRow Options="{x:Static local:AppModel.AudioChoices}" Selected="{Binding ConvertAudio}" />
+                    </DockPanel>
+                    <DockPanel Style="{StaticResource Row}">
+                        <local:Caps Text="Quality" Style="{StaticResource RowLabel}" />
+                        <TextBlock DockPanel.Dock="Right" Width="30" TextAlignment="Right" Style="{StaticResource Figures}" VerticalAlignment="Center"
+                                   Text="{Binding ConvertQuality, StringFormat={}{0:P0}}" Language="en-US" />
+                        <local:HairSlider Value="{Binding ConvertQuality}" Margin="0,0,12,0" />
+                    </DockPanel>
+                    <DockPanel Style="{StaticResource Row}">
+                        <local:Caps Text="Save to" Style="{StaticResource RowLabel}" />
+                        <ContentControl Content="{Binding}" ContentTemplate="{DynamicResource SaveTo}" Focusable="False" />
+                    </DockPanel>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- MARK: Fine-tune (Compress mode) -->
+            <StackPanel Visibility="{Binding ShowFineTunePanel, Converter={StaticResource VisibleWhen}}">
+                <Border Height="1" Background="{DynamicResource Line}" />
+                <StackPanel Margin="28,16,28,4">
+                    <DockPanel Style="{StaticResource Row}">
+                        <local:Caps Text="Quality" Style="{StaticResource RowLabel}" />
+                        <TextBlock DockPanel.Dock="Right" Width="30" TextAlignment="Right" Style="{StaticResource Figures}" VerticalAlignment="Center"
+                                   Text="{Binding Quality, StringFormat={}{0:P0}}" Language="en-US" />
+                        <local:HairSlider Value="{Binding Quality}" Ticks="0.5,0.72,0.88" Margin="0,0,12,0" />
+                    </DockPanel>
+                    <DockPanel Style="{StaticResource Row}">
+                        <local:Caps Text="Max size" Style="{StaticResource RowLabel}" />
+                        <local:OptionRow Options="{x:Static local:AppModel.MaxSizeChoices}" Selected="{Binding MaxSize}" />
+                    </DockPanel>
+                    <DockPanel Style="{StaticResource Row}">
+                        <local:Caps Text="Video" Style="{StaticResource RowLabel}" />
+                        <local:OptionRow Options="{Binding CodecChoices}" Selected="{Binding VideoCodec}" />
+                    </DockPanel>
+                    <DockPanel Style="{StaticResource Row}">
+                        <local:Caps Text="Metadata" Style="{StaticResource RowLabel}" />
+                        <local:OptionRow Options="{x:Static local:AppModel.MetadataChoices}" Selected="{Binding KeepMetadata}" />
+                    </DockPanel>
+                    <DockPanel Style="{StaticResource Row}">
+                        <local:Caps Text="Save to" Style="{StaticResource RowLabel}" />
+                        <ContentControl Content="{Binding}" ContentTemplate="{DynamicResource SaveTo}" Focusable="False" />
+                    </DockPanel>
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+
+        <Border Grid.Row="3" Height="1" Background="{DynamicResource Line}" />
+
+        <!-- MARK: Drop zone or queue -->
+        <Grid Grid.Row="4">
+            <Grid x:Name="DropZone" Margin="28" Visibility="{Binding IsEmpty, Converter={StaticResource VisibleWhen}}">
+                <Rectangle x:Name="DropBorder" Stroke="{DynamicResource Faint}" StrokeDashArray="3 4" StrokeThickness="1" Fill="Transparent" />
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <Path x:Name="DropArrow" Data="{StaticResource IconArrowDown}" Stroke="{DynamicResource Ink}" StrokeThickness="1"
+                          Width="26" Height="26" HorizontalAlignment="Center" />
+                    <TextBlock x:Name="DropTitle" Text="{Binding DropTitle}" FontFamily="{StaticResource Display}" FontSize="21" FontWeight="Medium"
+                               Foreground="{DynamicResource Ink}" HorizontalAlignment="Center" Margin="0,22,0,0" />
+                    <TextBlock Text="Images, PDFs, video and audio. Folders work too." Style="{StaticResource Body}" Foreground="{DynamicResource Muted}"
+                               HorizontalAlignment="Center" Margin="0,7,0,0" />
+                    <Button Style="{StaticResource Quiet}" Foreground="{DynamicResource Ink}" HorizontalAlignment="Center" Margin="0,22,0,0" Click="ChooseFiles">
+                        <StackPanel>
+                            <TextBlock Text="Choose files" FontWeight="Medium" />
+                            <Rectangle Height="1" Margin="0,3,0,0" Fill="{Binding (TextElement.Foreground), RelativeSource={RelativeSource Self}}" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+                <local:Caps Text="JPG  PNG  HEIC  WEBP  PDF  MP4  MOV  MP3  M4A  WAV" Foreground="{DynamicResource Faint}"
+                            VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,20" />
+            </Grid>
+
+            <DockPanel Visibility="{Binding HasItems, Converter={StaticResource VisibleWhen}}">
+                <Border x:Name="DropStrip" DockPanel.Dock="Top" Height="44" Background="Transparent">
+                    <StackPanel Orientation="Horizontal" Margin="28,0" VerticalAlignment="Center">
+                        <Path x:Name="StripIcon" Data="{StaticResource IconPlus}" Stroke="{DynamicResource Muted}" StrokeThickness="1"
+                              Width="10" Height="10" Margin="2,0,12,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="StripText" Text="Drop more files, or" Style="{StaticResource Body}" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
+                        <Button x:Name="StripBrowse" Style="{StaticResource Quiet}" Foreground="{DynamicResource Ink}" Margin="6,0,0,0" Click="ChooseFiles">
+                            <TextBlock Text="browse" FontWeight="Medium" />
+                        </Button>
+                    </StackPanel>
+                </Border>
+                <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource Line}" />
+                <ItemsControl ItemsSource="{Binding Items}" ItemTemplate="{StaticResource FileRow}" Focusable="False"
+                              VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel" ScrollViewer.CanContentScroll="True">
+                    <ItemsControl.Template>
+                        <ControlTemplate TargetType="ItemsControl">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                                <ItemsPresenter />
+                            </ScrollViewer>
+                        </ControlTemplate>
+                    </ItemsControl.Template>
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </DockPanel>
+        </Grid>
+
+        <Border Grid.Row="5" Height="1" Background="{DynamicResource Line}" />
+
+        <!-- MARK: Footer -->
+        <Grid Grid.Row="6" Height="64">
+            <ProgressBar Style="{StaticResource Hairline}" VerticalAlignment="Top" Value="{Binding BatchProgress, Mode=OneWay}"
+                         Visibility="{Binding IsRunning, Converter={StaticResource VisibleWhen}}" />
+            <Grid Margin="28,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding FooterLeadFigures}" Style="{StaticResource Figures}" Foreground="{DynamicResource Muted}" Margin="0,0,8,0"
+                               Visibility="{Binding FooterLeadFigures, Converter={StaticResource VisibleWhen}}" />
+                    <TextBlock Text="{Binding FooterText}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource Body}">
+                                <Setter Property="FontSize" Value="12" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding FooterIsQuiet}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource Faint}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="{Binding FooterTrailFigures}" Style="{StaticResource Figures}" Foreground="{DynamicResource Muted}" Margin="8,0,0,0"
+                               Visibility="{Binding FooterTrailFigures, Converter={StaticResource VisibleWhen}}" />
+                    <TextBlock Text="{Binding FooterPercent}" Margin="8,0,0,0" Visibility="{Binding FooterPercent, Converter={StaticResource VisibleWhen}}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource Figures}">
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                                <Setter Property="Foreground" Value="{DynamicResource Muted}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding FooterSaves}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Style="{StaticResource Quiet}" Content="Clear" Margin="0,0,18,0" Click="ClearQueue" VerticalAlignment="Center"
+                            Visibility="{Binding CanClear, Converter={StaticResource VisibleWhen}}" />
+                    <Button Style="{StaticResource Primary}" Click="RunQueue" IsEnabled="{Binding CanRun}"
+                            Visibility="{Binding IsIdle, Converter={StaticResource VisibleWhen}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding PrimaryLabel}" />
+                            <TextBlock Text="Ctrl ↵" FontSize="11" FontWeight="Normal" Opacity="0.45" Margin="10,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource Primary}" Content="Stop" Click="StopQueue"
+                            Visibility="{Binding IsRunning, Converter={StaticResource VisibleWhen}}" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

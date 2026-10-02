@@ -1,0 +1,13 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Monochrome palette with a single signal-orange accent (same as macOS). -->
+    <SolidColorBrush x:Key="Background" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="Ink" Color="#0A0A0A" />
+    <SolidColorBrush x:Key="Muted" Color="#800A0A0A" />
+    <SolidColorBrush x:Key="Faint" Color="#470A0A0A" />
+    <SolidColorBrush x:Key="Line" Color="#1A0A0A0A" />
+    <SolidColorBrush x:Key="Wash" Color="#090A0A0A" />
+    <SolidColorBrush x:Key="Accent" Color="#FF4D00" />
+    <SolidColorBrush x:Key="AccentWash" Color="#0BFF4D00" />
+    <SolidColorBrush x:Key="CloseHover" Color="#E81123" />
+</ResourceDictionary>

@@ -1,0 +1,62 @@
+name: Release
+
+# Push a tag like v1.0.0 to build both apps and publish a GitHub release.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/build.sh && ditto -c -k --keepParent build/Squish.app build/Squish-macOS.zip
+        working-directory: apple
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: apple/build/Squish-macOS.zip
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Publish
+        run: |
+          $builds = @(
+            @{ Name = "Squish-Windows-x64"; Rid = "win-x64"; Standalone = $false },
+            @{ Name = "Squish-Windows-arm64"; Rid = "win-arm64"; Standalone = $false },
+            @{ Name = "Squish-Windows-x64-standalone"; Rid = "win-x64"; Standalone = $true }
+          )
+          foreach ($b in $builds) {
+            dotnet publish Squish/Squish.csproj -c Release -r $b.Rid --self-contained $b.Standalone `
+              -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=$($b.Standalone) -o "publish/$($b.Name)"
+            if ($LASTEXITCODE) { exit 1 }
+            Compress-Archive -Path "publish/$($b.Name)/Squish.exe" -DestinationPath "publish/$($b.Name).zip"
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: windows/publish/*.zip
+
+  publish:
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Squish $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

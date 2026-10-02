@@ -1,0 +1,26 @@
+name: macOS
+
+on:
+  push:
+    branches: [main]
+    paths: ["apple/**", ".github/workflows/macos.yml"]
+  pull_request:
+    paths: ["apple/**", ".github/workflows/macos.yml"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: apple
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Squish.app (universal)
+        run: ./scripts/build.sh
+      - name: Zip
+        run: ditto -c -k --keepParent build/Squish.app build/Squish-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Squish-macOS
+          path: apple/build/Squish-macOS.zip
