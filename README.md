@@ -3,10 +3,18 @@
 A small, minimal app for compressing and converting images, PDFs, video and audio, available for **macOS** and **Windows**. Everything happens on your computer: no uploads, no accounts, no network.
 
 <p align="center">
-  <img src="docs/macos-compress.png" width="440" alt="Squish compressing a mix of files">
+  <img src="docs/macos-compress.png" width="440" alt="Squish on macOS, compressing a mix of files">
   &nbsp;
-  <img src="docs/macos-convert-dark.png" width="440" alt="Squish converting files, in dark mode">
+  <img src="docs/macos-convert-dark.png" width="440" alt="Squish on macOS, converting files in dark mode">
 </p>
+<p align="center"><sub>macOS</sub></p>
+
+<p align="center">
+  <img src="docs/windows-compress.png" width="440" alt="Squish on Windows, compressing a mix of files">
+  &nbsp;
+  <img src="docs/windows-convert-dark.png" width="440" alt="Squish on Windows, converting files in dark mode">
+</p>
+<p align="center"><sub>Windows. These screenshots come from the automated test run, on a machine without thumbnail handlers, so files show line glyphs; a normal PC shows real thumbnails.</sub></p>
 
 ## What it does
 
