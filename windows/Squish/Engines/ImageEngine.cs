@@ -91,24 +91,35 @@ public static class ImageEngine
                                                    Action<int>? pageDone = null)
     {
         using var document = new PdfDocument();
-        for (var index = 0; index < inputs.Count; index++)
+        // PDFsharp may read image data again when saving, so keep it alive.
+        var keep = new List<IDisposable>();
+        try
         {
-            using (var source = await Imaging.Source.Open(inputs[index]))
+            for (var index = 0; index < inputs.Count; index++)
             {
-                var pixels = await source.Decode(source.Longest);
-                var data = await Imaging.Encode(pixels, pixels.HasAlpha ? ImageFormat.Png : ImageFormat.Jpeg, settings.Quality);
-                using var stream = new MemoryStream(data);
-                using var image = XImage.FromStream(stream);
-                var scale = Math.Min(1.0, 842.0 / Math.Max(pixels.Width, pixels.Height));
-                var page = document.AddPage();
-                page.Width = XUnit.FromPoint(pixels.Width * scale);
-                page.Height = XUnit.FromPoint(pixels.Height * scale);
-                using var gfx = XGraphics.FromPdfPage(page);
-                gfx.DrawImage(image, 0, 0, page.Width.Point, page.Height.Point);
+                using (var source = await Imaging.Source.Open(inputs[index]))
+                {
+                    var pixels = await source.Decode(source.Longest);
+                    var data = await Imaging.Encode(pixels, pixels.HasAlpha ? ImageFormat.Png : ImageFormat.Jpeg, settings.Quality);
+                    var stream = new MemoryStream(data);
+                    var image = XImage.FromStream(stream);
+                    keep.Add(image);
+                    keep.Add(stream);
+                    var scale = Math.Min(1.0, 842.0 / Math.Max(pixels.Width, pixels.Height));
+                    var page = document.AddPage();
+                    page.Width = XUnit.FromPoint(pixels.Width * scale);
+                    page.Height = XUnit.FromPoint(pixels.Height * scale);
+                    using var gfx = XGraphics.FromPdfPage(page);
+                    gfx.DrawImage(image, 0, 0, page.Width.Point, page.Height.Point);
+                }
+                pageDone?.Invoke(index);
             }
-            pageDone?.Invoke(index);
+            document.Save(output);
         }
-        document.Save(output);
+        finally
+        {
+            foreach (var item in keep) item.Dispose();
+        }
         return new EngineOutput(output, "pdf", Formatting.Pages(inputs.Count));
     }
 }

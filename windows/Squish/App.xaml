@@ -24,6 +24,10 @@
             <Geometry x:Key="IconMinimize">M 0,0.5 L 10,0.5</Geometry>
             <Geometry x:Key="IconMaximize">M 0.5,0.5 L 9.5,0.5 L 9.5,9.5 L 0.5,9.5 Z</Geometry>
             <Geometry x:Key="IconClose">M 0,0 L 10,10 M 10,0 L 0,10</Geometry>
+            <Geometry x:Key="GlyphImage">M 0.5,1.5 L 13.5,1.5 L 13.5,12.5 L 0.5,12.5 Z M 2,11 L 5.5,7 L 8,9.5 L 10,7.5 L 12,11</Geometry>
+            <Geometry x:Key="GlyphPdf">M 1.5,0.5 L 8,0.5 L 11.5,4 L 11.5,13.5 L 1.5,13.5 Z M 8,0.5 L 8,4 L 11.5,4 M 4,7.5 L 9,7.5 M 4,10 L 9,10</Geometry>
+            <Geometry x:Key="GlyphVideo">M 0.5,2.5 L 13.5,2.5 L 13.5,11.5 L 0.5,11.5 Z M 5.5,5 L 9.5,7 L 5.5,9 Z</Geometry>
+            <Geometry x:Key="GlyphAudio">M 1,6 L 1,8 M 3.5,4 L 3.5,10 M 6,1.5 L 6,12.5 M 8.5,4.5 L 8.5,9.5 M 11,3 L 11,11 M 13.5,6 L 13.5,8</Geometry>
 
             <Style x:Key="Body" TargetType="TextBlock">
                 <Setter Property="FontFamily" Value="{StaticResource Ui}" />
@@ -62,7 +66,9 @@
                 </Setter>
             </Style>
 
-            <!-- Plain text that darkens on hover. -->
+            <!-- Plain text that darkens on hover. Colours go on the Button's own
+                 Foreground: element content inherits from the Button (its logical
+                 parent), not from the template. -->
             <Style x:Key="Quiet" TargetType="Button" BasedOn="{StaticResource Bare}">
                 <Setter Property="Foreground" Value="{DynamicResource Muted}" />
                 <Setter Property="FontSize" Value="12.5" />
@@ -70,12 +76,9 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Border Background="Transparent" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter x:Name="Content" TextElement.Foreground="{TemplateBinding Foreground}" />
+                                <ContentPresenter x:Name="Content" />
                             </Border>
                             <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Content" Property="TextElement.Foreground" Value="{DynamicResource Ink}" />
-                                </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
                                     <Setter TargetName="Content" Property="Opacity" Value="0.6" />
                                 </Trigger>
@@ -83,18 +86,23 @@
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Foreground" Value="{DynamicResource Ink}" />
+                    </Trigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource Bare}">
                 <Setter Property="FontSize" Value="12.5" />
                 <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource Background}" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="Box" Background="{DynamicResource Ink}" BorderBrush="Transparent" BorderThickness="1"
                                     Height="32" Padding="18,0">
-                                <ContentPresenter x:Name="Content" VerticalAlignment="Center"
-                                                  TextElement.Foreground="{DynamicResource Background}" />
+                                <ContentPresenter x:Name="Content" VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsPressed" Value="True">
@@ -103,12 +111,16 @@
                                 <Trigger Property="IsEnabled" Value="False">
                                     <Setter TargetName="Box" Property="Background" Value="{DynamicResource Wash}" />
                                     <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Line}" />
-                                    <Setter TargetName="Content" Property="TextElement.Foreground" Value="{DynamicResource Faint}" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Foreground" Value="{DynamicResource Faint}" />
+                    </Trigger>
+                </Style.Triggers>
             </Style>
 
             <!-- Minimise / maximise / close, drawn to match. -->

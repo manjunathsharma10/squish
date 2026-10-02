@@ -190,65 +190,70 @@ enum PaletteEncoder {
 
     /// Maps pixels to palette indices with serpentine Floyd–Steinberg dithering.
     private static func map(_ px: [UInt8], width w: Int, height h: Int, palette: [Float], clearIndex: Int?) -> [UInt8] {
-        var out = [UInt8](repeating: 0, count: w * h)
-        var cache = [Int16](repeating: -1, count: 1 << 22) // 6-6-6-4 bit lookup
-        var err = [Float](repeating: 0, count: (w + 2) * 4)
-        var next = err
+        // Plain pointers rather than nested withUnsafe… closures, which older
+        // Swift compilers can't type-check in reasonable time.
+        let count = w * h, rowFloats = (w + 2) * 4, cacheSize = 1 << 22
+        let out = UnsafeMutablePointer<UInt8>.allocate(capacity: count)
+        out.initialize(repeating: 0, count: count)
+        let cache = UnsafeMutablePointer<Int16>.allocate(capacity: cacheSize) // 6-6-6-4 bit lookup
+        cache.initialize(repeating: -1, count: cacheSize)
+        var cur = UnsafeMutablePointer<Float>.allocate(capacity: rowFloats)
+        cur.initialize(repeating: 0, count: rowFloats)
+        var nxt = UnsafeMutablePointer<Float>.allocate(capacity: rowFloats)
+        nxt.initialize(repeating: 0, count: rowFloats)
+        let palStorage = UnsafeMutablePointer<Float>.allocate(capacity: palette.count)
+        palStorage.initialize(from: palette, count: palette.count)
+        let pal = UnsafeBufferPointer(start: palStorage, count: palette.count)
+        defer {
+            out.deallocate(); cache.deallocate(); cur.deallocate(); nxt.deallocate(); palStorage.deallocate()
+        }
         let strength: Float = 0.8
 
-        palette.withUnsafeBufferPointer { pal in
-            px.withUnsafeBufferPointer { p in
-                out.withUnsafeMutableBufferPointer { out in
-                    cache.withUnsafeMutableBufferPointer { cache in
-                        for y in 0..<h {
-                            let ltr = y % 2 == 0
-                            let dir = ltr ? 4 : -4
-                            err.withUnsafeMutableBufferPointer { cur in
-                                next.withUnsafeMutableBufferPointer { nxt in
-                                    nxt.update(repeating: 0)
-                                    for step in 0..<w {
-                                        let x = ltr ? step : w - 1 - step
-                                        let o = (y * w + x) * 4
-                                        if p[o + 3] == 0, let clear = clearIndex {
-                                            out[y * w + x] = UInt8(clear)
-                                            continue
-                                        }
-                                        let e = (x + 1) * 4
-                                        let r = max(0, min(255, Float(p[o]) + cur[e]))
-                                        let g = max(0, min(255, Float(p[o + 1]) + cur[e + 1]))
-                                        let b = max(0, min(255, Float(p[o + 2]) + cur[e + 2]))
-                                        let a = max(0, min(255, Float(p[o + 3]) + cur[e + 3]))
-
-                                        let key = (Int(r) >> 2) << 16 | (Int(g) >> 2) << 10 | (Int(b) >> 2) << 4 | Int(a) >> 4
-                                        var k = Int(cache[key])
-                                        if k < 0 {
-                                            k = nearest(r, g, b, a, pal)
-                                            cache[key] = Int16(k)
-                                        }
-                                        out[y * w + x] = UInt8(k)
-
-                                        let q = k * 4
-                                        let d0 = (r - pal[q]) * strength, d1 = (g - pal[q + 1]) * strength
-                                        let d2 = (b - pal[q + 2]) * strength, d3 = (a - pal[q + 3]) * strength
-                                        let ahead = e + dir, behind = e - dir
-                                        cur[ahead] += d0 * 0.4375; cur[ahead + 1] += d1 * 0.4375
-                                        cur[ahead + 2] += d2 * 0.4375; cur[ahead + 3] += d3 * 0.4375
-                                        nxt[behind] += d0 * 0.1875; nxt[behind + 1] += d1 * 0.1875
-                                        nxt[behind + 2] += d2 * 0.1875; nxt[behind + 3] += d3 * 0.1875
-                                        nxt[e] += d0 * 0.3125; nxt[e + 1] += d1 * 0.3125
-                                        nxt[e + 2] += d2 * 0.3125; nxt[e + 3] += d3 * 0.3125
-                                        nxt[ahead] += d0 * 0.0625; nxt[ahead + 1] += d1 * 0.0625
-                                        nxt[ahead + 2] += d2 * 0.0625; nxt[ahead + 3] += d3 * 0.0625
-                                    }
-                                }
-                            }
-                            swap(&err, &next)
-                        }
+        px.withUnsafeBufferPointer { (p: UnsafeBufferPointer<UInt8>) -> Void in
+            for y in 0..<h {
+                let ltr = y % 2 == 0
+                let dir = ltr ? 4 : -4
+                nxt.update(repeating: 0, count: rowFloats)
+                for step in 0..<w {
+                    let x = ltr ? step : w - 1 - step
+                    let o = (y * w + x) * 4
+                    if p[o + 3] == 0, let clear = clearIndex {
+                        out[y * w + x] = UInt8(clear)
+                        continue
                     }
+                    let e = (x + 1) * 4
+                    let r: Float = max(0, min(255, Float(p[o]) + cur[e]))
+                    let g: Float = max(0, min(255, Float(p[o + 1]) + cur[e + 1]))
+                    let b: Float = max(0, min(255, Float(p[o + 2]) + cur[e + 2]))
+                    let a: Float = max(0, min(255, Float(p[o + 3]) + cur[e + 3]))
+
+                    let kr: Int = (Int(r) >> 2) << 16, kg: Int = (Int(g) >> 2) << 10
+                    let kb: Int = (Int(b) >> 2) << 4, ka: Int = Int(a) >> 4
+                    let key: Int = kr | kg | kb | ka
+                    var k = Int(cache[key])
+                    if k < 0 {
+                        k = nearest(r, g, b, a, pal)
+                        cache[key] = Int16(k)
+                    }
+                    out[y * w + x] = UInt8(k)
+
+                    let q = k * 4
+                    let d0: Float = (r - pal[q]) * strength, d1: Float = (g - pal[q + 1]) * strength
+                    let d2: Float = (b - pal[q + 2]) * strength, d3: Float = (a - pal[q + 3]) * strength
+                    let ahead = e + dir, behind = e - dir
+                    cur[ahead] += d0 * 0.4375; cur[ahead + 1] += d1 * 0.4375
+                    cur[ahead + 2] += d2 * 0.4375; cur[ahead + 3] += d3 * 0.4375
+                    nxt[behind] += d0 * 0.1875; nxt[behind + 1] += d1 * 0.1875
+                    nxt[behind + 2] += d2 * 0.1875; nxt[behind + 3] += d3 * 0.1875
+                    nxt[e] += d0 * 0.3125; nxt[e + 1] += d1 * 0.3125
+                    nxt[e + 2] += d2 * 0.3125; nxt[e + 3] += d3 * 0.3125
+                    nxt[ahead] += d0 * 0.0625; nxt[ahead + 1] += d1 * 0.0625
+                    nxt[ahead + 2] += d2 * 0.0625; nxt[ahead + 3] += d3 * 0.0625
                 }
+                swap(&cur, &nxt)
             }
         }
-        return out
+        return Array(UnsafeBufferPointer(start: out, count: count))
     }
 
     // MARK: PNG writer

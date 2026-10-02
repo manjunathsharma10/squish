@@ -73,9 +73,10 @@ public static class PdfEngine
             }
             document.Options.CompressContentStreams = true;
             document.Options.NoCompression = false;
+            var pages = document.PageCount; // a saved document can't be queried
             using var buffer = new MemoryStream();
             document.Save(buffer);
-            return (buffer.ToArray(), document.PageCount);
+            return (buffer.ToArray(), pages);
         }
     }
 

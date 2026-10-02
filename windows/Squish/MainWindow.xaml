@@ -100,6 +100,9 @@
                         <!-- Greyscale until hovered or finished, like the macOS app. -->
                         <Grid Width="36" Height="36" ClipToBounds="True">
                             <Border Background="{DynamicResource Wash}" />
+                            <Path x:Name="KindGlyph" Data="{StaticResource GlyphImage}" Stroke="{DynamicResource Muted}" StrokeThickness="1"
+                                  Width="14" Height="14" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Visibility="{Binding HasThumbnail, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
                             <Image Source="{Binding ThumbnailMono}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
                             <Image x:Name="Vivid" Source="{Binding Thumbnail}" Stretch="UniformToFill" Opacity="0"
                                    RenderOptions.BitmapScalingMode="HighQuality" />
@@ -140,6 +143,15 @@
                 </Grid>
             </Border>
             <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Kind}" Value="Pdf">
+                    <Setter TargetName="KindGlyph" Property="Data" Value="{StaticResource GlyphPdf}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="Video">
+                    <Setter TargetName="KindGlyph" Property="Data" Value="{StaticResource GlyphVideo}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="Audio">
+                    <Setter TargetName="KindGlyph" Property="Data" Value="{StaticResource GlyphAudio}" />
+                </DataTrigger>
                 <DataTrigger Binding="{Binding IsVivid}" Value="True">
                     <Setter TargetName="Vivid" Property="Opacity" Value="1" />
                 </DataTrigger>

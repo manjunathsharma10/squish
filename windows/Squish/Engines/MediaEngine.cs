@@ -66,11 +66,18 @@ public static class MediaEngine
         if (source.Duration <= 0) return estimates;
         foreach (var target in targets)
         {
+            var ext = Extension(kind, target);
+            // Files already in the target format are left as they are.
+            if (target.Mode == Mode.Convert && AlreadyThere(input, kind, source, target, ext) != null)
+            {
+                estimates[target] = new EngineEstimate(new FileInfo(input).Length, ext);
+                continue;
+            }
             double bits = 0;
             if (source.Video != null) bits += VideoPlan(source, target).Bitrate;
             if (source.Audio != null) bits += AudioPlan(source.Audio, kind, target).Bitrate;
             var bytes = bits * source.Duration / 8 * 1.01 + 4_096; // container overhead
-            estimates[target] = new EngineEstimate((long)bytes, Extension(kind, target));
+            estimates[target] = new EngineEstimate((long)bytes, ext);
         }
         return estimates;
     }
@@ -206,7 +213,7 @@ public static class MediaEngine
                 return new Audio(AudioEncodingProperties.CreatePcm(pcmRate, channels, 16), pcmRate * channels * 16.0, "PCM 16-bit");
             case AudioFormat.Mp3:
                 var mp3 = q < 0.6 ? 128_000u : q < 0.8 ? 192_000u : q < 0.95 ? 256_000u : 320_000u;
-                return new Audio(AudioEncodingProperties.CreateMp3(rate, channels, mp3), mp3, $"MP3 {mp3 / 1000} kbps");
+                return new Audio(AudioEncodingProperties.CreateMp3(rate, channels, mp3), mp3, $"{mp3 / 1000} kbps");
             default:
                 // The AAC encoder only accepts 96, 128, 160 or 192 kbps.
                 var aac = q < 0.6 ? 96_000u : q < 0.8 ? 128_000u : q < 0.95 ? 160_000u : 192_000u;

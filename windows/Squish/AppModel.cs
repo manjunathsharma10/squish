@@ -303,7 +303,8 @@ public sealed class AppModel : Observable
             var file = await StorageFile.GetFileFromPathAsync(item.Path);
             using (var thumb = await file.GetThumbnailAsync(ThumbnailMode.SingleItem, 80, ThumbnailOptions.ResizeThumbnail))
             {
-                if (thumb != null)
+                // Generic file-type icons are skipped in favour of our own glyphs.
+                if (thumb is { Type: ThumbnailType.Image })
                 {
                     var bytes = await Imaging.ReadAll(thumb);
                     var image = new BitmapImage();
@@ -312,15 +313,27 @@ public sealed class AppModel : Observable
                     image.StreamSource = new MemoryStream(bytes);
                     image.EndInit();
                     image.Freeze();
-                    var mono = new FormatConvertedBitmap(image, PixelFormats.Gray8, null, 0);
-                    mono.Freeze();
-                    item.ThumbnailMono = mono;
+                    item.ThumbnailMono = Greyscale(image);
                     item.Thumbnail = image;
                 }
             }
             item.Info = await Describe(file, item.Kind);
         }
         catch (Exception) { /* thumbnails and details are nice-to-haves */ }
+    }
+
+    /// Luminance, keeping the alpha channel (Gray8 would turn it black).
+    static BitmapSource Greyscale(BitmapSource image)
+    {
+        var source = new FormatConvertedBitmap(image, PixelFormats.Bgra32, null, 0);
+        int w = source.PixelWidth, h = source.PixelHeight, stride = w * 4;
+        var px = new byte[h * stride];
+        source.CopyPixels(px, stride, 0);
+        for (var i = 0; i < px.Length; i += 4)
+            px[i] = px[i + 1] = px[i + 2] = (byte)(0.114 * px[i] + 0.587 * px[i + 1] + 0.299 * px[i + 2]);
+        var grey = BitmapSource.Create(w, h, source.DpiX, source.DpiY, PixelFormats.Bgra32, null, px, stride);
+        grey.Freeze();
+        return grey;
     }
 
     static async Task<string> Describe(StorageFile file, FileKind kind)
